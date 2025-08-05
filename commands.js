@@ -293,11 +293,15 @@ function registerCommands(app) {
         }
         confirmationMessage += " for <@" + celebrantId + ">! 🎉";
 
-        // Delete the original message containing the form
-        await client.chat.delete({
-          channel: body.channel.id,
-          ts: body.message.ts
-        });
+        // Try to delete the original message containing the form
+        try {
+          await client.chat.delete({
+            channel: body.channel.id,
+            ts: body.message.ts
+          });
+        } catch (deleteError) {
+          console.log('Could not delete original message (this is okay):', deleteError.message);
+        }
 
         // Confirm receipt to the sender
         await client.chat.postMessage({
