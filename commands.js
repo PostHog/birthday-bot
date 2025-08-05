@@ -24,9 +24,9 @@ function isValidDate(dateStr) {
 function registerCommands(app) {
   // Command to set birthday (DD-MM)
   app.command('/set-birthday', async ({ command, ack, say, client }) => {
+    await ack();
+    
     try {
-      await ack();
-      
       const parts = command.text.trim().split(' ');
       
       if (parts.length !== 2) {
@@ -85,9 +85,9 @@ function registerCommands(app) {
 
   // Command to list all birthdays
   app.command('/see-birthdays', async ({ command, ack, say, client }) => {
+    await ack();
+    
     try {
-      await ack();
-      
       // Get all birthdays, ordered by upcoming date
       const birthdays = statements.getAllBirthdays.all();
       
@@ -162,8 +162,9 @@ function registerCommands(app) {
   });
 
   app.command('/collect-birthday-messages', async ({ command, ack, client, say }) => {
+    await ack();
+    
     try {
-      await ack();
       const [celebrantId] = command.text.split(' ');
       
       if (!celebrantId) {
@@ -258,25 +259,35 @@ function registerCommands(app) {
       }
 
       try {
-        // Save message if provided
+        // Save message if provided and not duplicate
         if (messageText) {
-          statements.insertBirthdayMessage.run(
-            celebrantId,    // who the birthday is for
-            senderId,       // who sent the message
-            senderName,     // sender's real name
-            messageText,    // the actual message
-            mediaUrl       // optional media URL
-          );
+          const existingMessage = statements.checkDuplicateBirthdayMessage.get(celebrantId, senderId, messageText);
+          if (existingMessage.count === 0) {
+            statements.insertBirthdayMessage.run(
+              celebrantId,    // who the birthday is for
+              senderId,       // who sent the message
+              senderName,     // sender's real name
+              messageText,    // the actual message
+              mediaUrl       // optional media URL
+            );
+          } else {
+            console.log(`Duplicate birthday message prevented for ${senderId} -> ${celebrantId}`);
+          }
         }
 
-        // Save description if provided
+        // Save description if provided and not duplicate
         if (descriptionText) {
-          statements.insertDescriptionMessage.run(
-            celebrantId,    // who the birthday is for
-            senderId,       // who sent the description
-            senderName,     // sender's real name
-            descriptionText // the actual description
-          );
+          const existingDesc = statements.checkDuplicateDescriptionMessage.get(celebrantId, senderId, descriptionText);
+          if (existingDesc.count === 0) {
+            statements.insertDescriptionMessage.run(
+              celebrantId,    // who the birthday is for
+              senderId,       // who sent the description
+              senderName,     // sender's real name
+              descriptionText // the actual description
+            );
+          } else {
+            console.log(`Duplicate description message prevented for ${senderId} -> ${celebrantId}`);
+          }
         }
 
         // Customize confirmation message based on what was submitted
@@ -332,8 +343,9 @@ function registerCommands(app) {
   });
 
   app.command('/post-birthday-thread', async ({ command, ack, client, say }) => {
+    await ack();
+    
     try {
-      await ack();
       const celebrantId = command.text.trim();
       
       if (!celebrantId) {

@@ -176,5 +176,15 @@ module.exports = {
     checkUserExists: db.prepare(`
       SELECT COUNT(*) as count FROM birthdays WHERE user_id = ?
     `),
+
+    checkDuplicateBirthdayMessage: db.prepare(`
+      SELECT COUNT(*) as count FROM birthday_messages 
+      WHERE celebrant_id = ? AND sender_id = ? AND message = ? AND sent_in_thread = FALSE
+    `),
+
+    checkDuplicateDescriptionMessage: db.prepare(`
+      SELECT COUNT(*) as count FROM description_messages 
+      WHERE celebrant_id = ? AND sender_id = ? AND message = ? AND sent_in_thread = FALSE
+    `),
   }
 };
