@@ -259,33 +259,29 @@ function registerCommands(app) {
       }
 
       try {
-        // Save message if provided and not duplicate
+        // Save message if provided (database will handle duplicates)
         if (messageText) {
-          const existingMessage = statements.checkDuplicateBirthdayMessage.get(celebrantId, senderId, messageText);
-          if (existingMessage.count === 0) {
-            statements.insertBirthdayMessage.run(
-              celebrantId,    // who the birthday is for
-              senderId,       // who sent the message
-              senderName,     // sender's real name
-              messageText,    // the actual message
-              mediaUrl       // optional media URL
-            );
-          } else {
+          const result = statements.insertBirthdayMessage.run(
+            celebrantId,    // who the birthday is for
+            senderId,       // who sent the message
+            senderName,     // sender's real name
+            messageText,    // the actual message
+            mediaUrl       // optional media URL
+          );
+          if (result.changes === 0) {
             console.log(`Duplicate birthday message prevented for ${senderId} -> ${celebrantId}`);
           }
         }
 
-        // Save description if provided and not duplicate
+        // Save description if provided (database will handle duplicates)
         if (descriptionText) {
-          const existingDesc = statements.checkDuplicateDescriptionMessage.get(celebrantId, senderId, descriptionText);
-          if (existingDesc.count === 0) {
-            statements.insertDescriptionMessage.run(
-              celebrantId,    // who the birthday is for
-              senderId,       // who sent the description
-              senderName,     // sender's real name
-              descriptionText // the actual description
-            );
-          } else {
+          const result = statements.insertDescriptionMessage.run(
+            celebrantId,    // who the birthday is for
+            senderId,       // who sent the description
+            senderName,     // sender's real name
+            descriptionText // the actual description
+          );
+          if (result.changes === 0) {
             console.log(`Duplicate description message prevented for ${senderId} -> ${celebrantId}`);
           }
         }
