@@ -4,6 +4,35 @@ const { triggerBirthdayCollection, postBirthdayThread } = require('./birthday-se
 
 const ADMIN_CHANNEL = process.env.ADMIN_CHANNEL;
 
+// Automatically cleanup deactivated users
+async function cleanupDeactivatedUsers(client) {
+  try {
+    const result = await client.users.list();
+    const users = result.members;
+    const birthdays = statements.getAllBirthdays.all();
+    
+    let deletedCount = 0;
+    
+    for (const birthday of birthdays) {
+      const slackUser = users.find(user => user.id === birthday.user_id);
+      
+      // If user doesn't exist in Slack or is deleted, remove from database
+      if (!slackUser || slackUser.deleted) {
+        statements.deleteBirthdayMessagesForUser.run(birthday.user_id);
+        statements.deleteDescriptionMessagesForUser.run(birthday.user_id);
+        statements.deleteUser.run(birthday.user_id);
+        deletedCount++;
+      }
+    }
+    
+    if (deletedCount > 0) {
+      console.log(`Cleaned up ${deletedCount} deactivated users from database`);
+    }
+  } catch (error) {
+    console.error('Error cleaning up deactivated users:', error);
+  }
+}
+
 function setupCronJobs(app) {
   // Run every day at 9:00 AM Europe/London time
   cron.schedule('0 9 * * *', async () => {
@@ -12,6 +41,8 @@ function setupCronJobs(app) {
   // cron.schedule('*/1 * * * *', async () => {
 
     try {
+      // Clean up deactivated users first
+      await cleanupDeactivatedUsers(app.client);
       // Get today's birthdays and upcoming (7 days) birthdays
       const upcomingBirthdays = statements.getAllBirthdays.all();
       
