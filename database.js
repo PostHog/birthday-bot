@@ -225,5 +225,17 @@ module.exports = {
     checkUserExists: db.prepare(`
       SELECT COUNT(*) as count FROM birthdays WHERE user_id = ?
     `),
+
+    deleteUser: db.prepare(`
+      DELETE FROM birthdays WHERE user_id = ?
+    `),
+
+    deleteBirthdayMessagesForUser: db.prepare(`
+      DELETE FROM birthday_messages WHERE celebrant_id = ?
+    `),
+
+    deleteDescriptionMessagesForUser: db.prepare(`
+      DELETE FROM description_messages WHERE celebrant_id = ?
+    `),
   }
 };
