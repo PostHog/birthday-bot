@@ -30,44 +30,93 @@ if (!fs.existsSync(gitignore) || !fs.readFileSync(gitignore, 'utf8').includes('d
 }
 
 // Initialize tables with more robust schema
-db.exec(`
-  CREATE TABLE IF NOT EXISTS birthdays (
-    user_id TEXT PRIMARY KEY,
-    birth_date TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    notification_sent BOOLEAN DEFAULT FALSE,
-    last_notification_date TEXT
-  );
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS birthdays (
+      user_id TEXT PRIMARY KEY,
+      birth_date TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      notification_sent BOOLEAN DEFAULT FALSE,
+      last_notification_date TEXT
+    );
 
-  CREATE TABLE IF NOT EXISTS birthday_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    celebrant_id TEXT NOT NULL,
-    sender_id TEXT NOT NULL,
-    sender_name TEXT NOT NULL,
-    message TEXT NOT NULL,
-    media_url TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    sent_in_thread BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (celebrant_id) REFERENCES birthdays(user_id)
-  );
+    CREATE TABLE IF NOT EXISTS birthday_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      celebrant_id TEXT NOT NULL,
+      sender_id TEXT NOT NULL,
+      sender_name TEXT NOT NULL,
+      message TEXT NOT NULL,
+      media_url TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      sent_in_thread BOOLEAN DEFAULT FALSE,
+      FOREIGN KEY (celebrant_id) REFERENCES birthdays(user_id),
+      UNIQUE(celebrant_id, sender_id, message, DATE(created_at))
+    );
 
-  CREATE TABLE IF NOT EXISTS description_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    celebrant_id TEXT NOT NULL,
-    sender_id TEXT NOT NULL,
-    sender_name TEXT NOT NULL,
-    message TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    sent_in_thread BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY (celebrant_id) REFERENCES birthdays(user_id)
-  );
+    CREATE TABLE IF NOT EXISTS description_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      celebrant_id TEXT NOT NULL,
+      sender_id TEXT NOT NULL,
+      sender_name TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      sent_in_thread BOOLEAN DEFAULT FALSE,
+      FOREIGN KEY (celebrant_id) REFERENCES birthdays(user_id),
+      UNIQUE(celebrant_id, sender_id, message, DATE(created_at))
+    );
 
-  -- Add any indexes we need
-  CREATE INDEX IF NOT EXISTS idx_birth_date ON birthdays(birth_date);
-  CREATE INDEX IF NOT EXISTS idx_celebrant_messages ON birthday_messages(celebrant_id);
-  CREATE INDEX IF NOT EXISTS idx_description_messages ON description_messages(celebrant_id);
-`);
+    -- Add any indexes we need
+    CREATE INDEX IF NOT EXISTS idx_birth_date ON birthdays(birth_date);
+    CREATE INDEX IF NOT EXISTS idx_celebrant_messages ON birthday_messages(celebrant_id);
+    CREATE INDEX IF NOT EXISTS idx_description_messages ON description_messages(celebrant_id);
+  `);
+  
+  // Try to add unique constraints separately in case there are existing duplicates
+  try {
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS unique_birthday_messages 
+        ON birthday_messages(celebrant_id, sender_id, message, DATE(created_at));
+    `);
+  } catch (error) {
+    console.log('Warning: Could not create unique index for birthday_messages (may have duplicates):', error.message);
+    // If unique index creation fails, remove duplicates first
+    db.exec(`
+      DELETE FROM birthday_messages 
+      WHERE id NOT IN (
+        SELECT MIN(id) 
+        FROM birthday_messages 
+        GROUP BY celebrant_id, sender_id, message, DATE(created_at)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS unique_birthday_messages 
+        ON birthday_messages(celebrant_id, sender_id, message, DATE(created_at));
+    `);
+  }
+  
+  try {
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS unique_description_messages 
+        ON description_messages(celebrant_id, sender_id, message, DATE(created_at));
+    `);
+  } catch (error) {
+    console.log('Warning: Could not create unique index for description_messages (may have duplicates):', error.message);
+    // If unique index creation fails, remove duplicates first
+    db.exec(`
+      DELETE FROM description_messages 
+      WHERE id NOT IN (
+        SELECT MIN(id) 
+        FROM description_messages 
+        GROUP BY celebrant_id, sender_id, message, DATE(created_at)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS unique_description_messages 
+        ON description_messages(celebrant_id, sender_id, message, DATE(created_at));
+    `);
+  }
+  
+} catch (error) {
+  console.error('Error initializing database:', error);
+  throw error;
+}
 
 // Add a function to check database connection
 function checkDatabase() {
@@ -121,7 +170,7 @@ module.exports = {
     `),
 
     insertBirthdayMessage: db.prepare(`
-      INSERT INTO birthday_messages (
+      INSERT OR IGNORE INTO birthday_messages (
         celebrant_id,
         sender_id,
         sender_name,
@@ -151,7 +200,7 @@ module.exports = {
     `),
 
     insertDescriptionMessage: db.prepare(`
-      INSERT INTO description_messages (
+      INSERT OR IGNORE INTO description_messages (
         celebrant_id,
         sender_id,
         sender_name,
@@ -175,16 +224,6 @@ module.exports = {
 
     checkUserExists: db.prepare(`
       SELECT COUNT(*) as count FROM birthdays WHERE user_id = ?
-    `),
-
-    checkDuplicateBirthdayMessage: db.prepare(`
-      SELECT COUNT(*) as count FROM birthday_messages 
-      WHERE celebrant_id = ? AND sender_id = ? AND message = ? AND sent_in_thread = FALSE
-    `),
-
-    checkDuplicateDescriptionMessage: db.prepare(`
-      SELECT COUNT(*) as count FROM description_messages 
-      WHERE celebrant_id = ? AND sender_id = ? AND message = ? AND sent_in_thread = FALSE
     `),
   }
 };
