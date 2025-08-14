@@ -45,10 +45,13 @@ function registerCommands(app) {
         // Look up user info from Slack API
         const result = await client.users.list();
         const users = result.members;
+        console.log(users);
 
         // Extract user ID from mention format <@U1234> or direct ID
         const userId = userMention.replace(/[<@>]/g, '');
+        console.log(userId);
         const user = users.find(user => user.id === userId || user.name === userId);
+        console.log(user);
         
         if (!user) {
           throw new Error('User not found');
