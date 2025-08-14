@@ -28,7 +28,6 @@ function registerCommands(app) {
     
     try {
       const parts = command.text.trim().split(' ');
-      console.log(command);
       
       if (parts.length !== 2) {
         await say("Please use the format: `/set-birthday @user DD-MM`");
@@ -47,27 +46,10 @@ function registerCommands(app) {
         const result = await client.users.list();
         const users = result.members;
 
-        // Extract user ID from mention format <@U1234> or direct ID
-        const userId = userMention.replace(/[<@>]/g, '');
-
-        // Log users where name, profile.real_name, display_name, or real_name_normalized include userMention
-        const searchTerm = userId;
-        const matchingUsers = users.filter(user => {
-          const name = user.name || "";
-          const profile = user.profile || {};
-          const realName = profile.real_name || "";
-          const displayName = profile.display_name || "";
-          const realNameNormalized = profile.real_name_normalized || "";
-          return (
-            name.toLowerCase().includes(searchTerm) ||
-            realName.toLowerCase().includes(searchTerm) ||
-            displayName.toLowerCase().includes(searchTerm) ||
-            realNameNormalized.toLowerCase().includes(searchTerm)
-          );
-        });
-        console.log(matchingUsers);
-
-        const user = users.find(user => user.id === userId || user.name === userId);
+        // Because we set the Slack command setting to escape channels, users, and links
+        // userMention is in the format <@U1234|username>, extract just the user ID
+        const userId = userMention.replace(/^<@([A-Z0-9]+)\|[^>]+>$/, '$1');
+        const user = users.find(user => user.id === userId);
         
         if (!user) {
           throw new Error('User not found');
@@ -206,9 +188,10 @@ function registerCommands(app) {
       const result = await client.users.list();
       const users = result.members;
 
-      // Extract user ID from mention format <@U1234> or direct ID
-      const userId = celebrantId.replace(/[<@>]/g, '');
-      const user = users.find(user => user.id === userId || user.name === userId);
+      // Because we set the Slack command setting to escape channels, users, and links
+      // celebrantId is in the format <@U1234|username>, extract just the user ID
+      const userId = celebrantId.replace(/^<@([A-Z0-9]+)\|[^>]+>$/, '$1');
+      const user = users.find(user => user.id === userId);
       
       if (!user) {
         throw new Error('User not found');
@@ -383,9 +366,10 @@ function registerCommands(app) {
       const result = await client.users.list();
       const users = result.members;
 
-      // Extract user ID from mention format <@U1234> or direct ID
-      const userId = celebrantId.replace(/[<@>]/g, '');
-      const user = users.find(user => user.id === userId || user.name === userId);
+      // Because we set the Slack command setting to escape channels, users, and links
+      // celebrantId is in the format <@U1234|username>, extract just the user ID
+      const userId = celebrantId.replace(/^<@([A-Z0-9]+)\|[^>]+>$/, '$1');
+      const user = users.find(user => user.id === userId);
       
       if (!user) {
         throw new Error('User not found');
