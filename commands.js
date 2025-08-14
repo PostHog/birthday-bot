@@ -46,9 +46,9 @@ function registerCommands(app) {
         const result = await client.users.list();
         const users = result.members;
 
-        // Extract user ID from mention format <@U1234>
-        const userName = userMention.replace(/[<@>]/g, '');
-        const user = users.find(user => user.name === userName);
+        // Extract user ID from mention format <@U1234> or direct ID
+        const userId = userMention.replace(/[<@>]/g, '');
+        const user = users.find(user => user.id === userId || user.name === userId);
         
         if (!user) {
           throw new Error('User not found');
@@ -187,9 +187,9 @@ function registerCommands(app) {
       const result = await client.users.list();
       const users = result.members;
 
-      // Extract user ID from mention format <@U1234>
-      const userName = celebrantId.replace(/[<@>]/g, '');
-      const user = users.find(user => user.name === userName);
+      // Extract user ID from mention format <@U1234> or direct ID
+      const userId = celebrantId.replace(/[<@>]/g, '');
+      const user = users.find(user => user.id === userId || user.name === userId);
       
       if (!user) {
         throw new Error('User not found');
@@ -364,9 +364,9 @@ function registerCommands(app) {
       const result = await client.users.list();
       const users = result.members;
 
-      // Extract user ID from mention format <@U1234>
-      const userName = celebrantId.replace(/[<@>]/g, '');
-      const user = users.find(user => user.name === userName);
+      // Extract user ID from mention format <@U1234> or direct ID
+      const userId = celebrantId.replace(/[<@>]/g, '');
+      const user = users.find(user => user.id === userId || user.name === userId);
       
       if (!user) {
         throw new Error('User not found');
