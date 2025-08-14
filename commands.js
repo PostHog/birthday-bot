@@ -28,6 +28,7 @@ function registerCommands(app) {
     
     try {
       const parts = command.text.trim().split(' ');
+      console.log(command);
       
       if (parts.length !== 2) {
         await say("Please use the format: `/set-birthday @user DD-MM`");
@@ -45,10 +46,30 @@ function registerCommands(app) {
         // Look up user info from Slack API
         const result = await client.users.list();
         const users = result.members;
+        
+        console.log(userMention);
+        
+        // Extract userId and username from userMention
+        const mentionMatch = userMention.match(/^<@([A-Z0-9]+)\|([^>]+)>$/);
+        const mentionedId = mentionMatch ? mentionMatch[1] : null;
+        const mentionedName = mentionMatch ? mentionMatch[2] : null;
+
+        // Find users matching either the ID, or if the name/real_name/real_name_normalized includes the username
+        const matchingUsers = users.filter(user =>
+          user.id === mentionedId ||
+          (user.name && user.name.includes(mentionedName)) ||
+          (user.profile && (
+            (user.profile.real_name && user.profile.real_name.includes(mentionedName)) ||
+            (user.profile.real_name_normalized && user.profile.real_name_normalized.includes(mentionedName))
+          ))
+        );
+
+        console.log(matchingUsers);
 
         // Because we set the Slack command setting to escape channels, users, and links
         // userMention is in the format <@U1234|username>, extract just the user ID
         const userId = userMention.replace(/^<@([A-Z0-9]+)\|[^>]+>$/, '$1');
+        console.log(userId)
         const user = users.find(user => user.id === userId);
         
         if (!user) {
