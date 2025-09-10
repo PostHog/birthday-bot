@@ -154,6 +154,18 @@ const generateBirthdayCollectionBlocks = (celebrantId) => {
   ]
 }
 
+const checkBirthdayExists = (users, celebrantId) => {
+  // Takes a list of users and the celebrantId, checks that birthdays exist for all of them, and returns a list of users without birthdays
+  const birthdays = statements.getAllBirthdays.all();
+  const validBirthdays = birthdays.filter(b => b.user_id !== null && b.user_id !== undefined);
+  const birthdayUserIds = new Set(validBirthdays.map(b => b.user_id));
+  const missingBirthdayUserIds = users
+    .map(u => u.id)
+    .filter(id => id !== celebrantId && !birthdayUserIds.has(id));
+
+  return missingBirthdayUserIds;
+}
+
 async function triggerBirthdayCollection(client, celebrantId) {
   try {
     const exists = statements.checkUserExists.get(celebrantId);
@@ -226,6 +238,27 @@ async function triggerBirthdayCollection(client, celebrantId) {
 
     console.log(`Updating last notification date for ${celebrantId}`);
     statements.updateLastNotificationDate.run(celebrantId);
+
+    console.log(`Checking for missing birthdays`);
+    const missingBirthdayUserIds = checkBirthdayExists(users, celebrantId);
+    if (missingBirthdayUserIds.length > 0) {
+      console.log(`Found ${missingBirthdayUserIds.length} missing birthdays`);
+      
+      // Get user info for all missing users in parallel
+      const userInfoPromises = missingBirthdayUserIds.map(userId => 
+        client.users.info({ user: userId })
+      );
+      const userInfos = await Promise.all(userInfoPromises);
+      
+      const missingBirthdayNames = userInfos
+        .map(userInfo => userInfo.user.real_name || userInfo.user.name)
+        .join(', ');
+
+      await client.chat.postMessage({
+        channel: ADMIN_CHANNEL,
+        text: `Users missing birthdays: ${missingBirthdayNames}`
+      });
+    }
   } catch (error) {
     await client.chat.postMessage({
       channel: ADMIN_CHANNEL,
