@@ -1,11 +1,133 @@
 const { db, statements } = require('./database');
 const { postBirthdayThread, triggerBirthdayCollection } = require('./birthday-service');
 
+// Simple in-memory cache for user data (expires after 5 minutes)
+const userCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 // Helper function to format date
 function formatDate(dateStr) {
   const [day, month] = dateStr.split('-');
   const date = new Date(2000, parseInt(month) - 1, parseInt(day));
   return date.toLocaleString('default', { month: 'long', day: 'numeric' });
+}
+
+// Helper function to search for a user by first and last name
+async function findUserByName(client, firstName, lastName) {
+  console.log(`Searching for user: ${firstName} ${lastName}`);
+  
+  // Check cache first
+  const cacheKey = `${firstName.toLowerCase()}-${lastName.toLowerCase()}`;
+  const cached = userCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log(`Found user in cache: ${cached.user.real_name || cached.user.name}`);
+    return cached.user;
+  }
+  
+  let user = null;
+  let cursor = undefined;
+  let searchAttempts = 0;
+  const maxSearchAttempts = 10; // Prevent infinite loops
+  
+  do {
+    searchAttempts++;
+    if (searchAttempts > maxSearchAttempts) {
+      console.log('Max search attempts reached, stopping search');
+      break;
+    }
+
+    try {
+      // Get all users from Slack
+      const response = await client.users.list(cursor ? { cursor } : {});
+      const memberList = response.members;
+      
+      // Try to find by real_name first
+      user = memberList.find(
+        m =>
+          !m.deleted &&
+          m.real_name &&
+          m.real_name.trim().toLowerCase() === `${firstName} ${lastName}`.trim().toLowerCase()
+      );
+
+      // If not found, try profile.real_name_normalized
+      if (!user) {
+        user = memberList.find(
+          m =>
+            !m.deleted &&
+            m.profile &&
+            m.profile.real_name_normalized &&
+            m.profile.real_name_normalized.trim().toLowerCase() === `${firstName} ${lastName}`.trim().toLowerCase()
+        );
+      }
+
+      // If not found, try profile.display_name_normalized
+      if (!user) {
+        user = memberList.find(
+          m =>
+            !m.deleted &&
+            m.profile &&
+            m.profile.display_name_normalized &&
+            m.profile.display_name_normalized.trim().toLowerCase() === `${firstName} ${lastName}`.trim().toLowerCase()
+        );
+      }
+
+      // If not found, try profile.first_name (only if exactly one match)
+      if (!user) {
+        const firstNameMatches = memberList.filter(
+          m =>
+            !m.deleted &&
+            m.profile &&
+            m.profile.first_name &&
+            m.profile.first_name.trim().toLowerCase() === firstName.trim().toLowerCase()
+        );
+        if (firstNameMatches.length === 1) {
+          user = firstNameMatches[0];
+        }
+      }
+
+      // If not found, try profile.last_name (only if exactly one match)
+      if (!user) {
+        const lastNameMatches = memberList.filter(
+          m =>
+            !m.deleted &&
+            m.profile &&
+            m.profile.last_name &&
+            m.profile.last_name.trim().toLowerCase() === lastName.trim().toLowerCase()
+        );
+        if (lastNameMatches.length === 1) {
+          user = lastNameMatches[0];
+        }
+      }
+
+      if (user) {
+        console.log(`Found user: ${user.real_name || user.name} (${user.id})`);
+        // Cache the result
+        userCache.set(cacheKey, {
+          user: user,
+          timestamp: Date.now()
+        });
+        break;
+      }
+
+      // If not found, try next page
+      cursor = response.response_metadata && response.response_metadata.next_cursor
+        ? response.response_metadata.next_cursor
+        : undefined;
+    } catch (error) {
+      console.error('Error searching for user:', error);
+      throw error;
+    }
+  } while (cursor && cursor.length > 0);
+  
+  // Cache negative results too (user not found)
+  if (!user) {
+    userCache.set(cacheKey, {
+      user: null,
+      timestamp: Date.now()
+    });
+  }
+  
+  return user;
 }
 
 // Validate date format (DD-MM)
@@ -79,6 +201,102 @@ function registerCommands(app) {
     } catch (error) {
       console.error('Error in /set-birthday command:', error);
       await say("Sorry, there was an error setting the birthday. Please try again.");
+    }
+  });
+
+  // Command to set birthday automatically using first name, last name and DD-MM (from Deel)
+  app.command('/set-birthday-auto', async ({ command, ack, say, client }) => {
+    await ack();
+    
+    try {
+      // command.text will look like this: "/set-birthday-auto Ian Vanagas 11-02"
+      const parts = command.text.trim().split(' ');
+
+      // Validate input format
+      if (parts.length < 3) {
+        await say("Please use the format: `/set-birthday-auto FirstName LastName DD-MM`\nExample: `/set-birthday-auto John Smith 15-03`");
+        return;
+      }
+
+      let [firstName, lastName, birthDate] = parts;
+
+      // Validate date format
+      if (!isValidDate(birthDate)) {
+        await say("Please provide a valid date in DD-MM format (e.g., 11-02 for February 11th)");
+        return;
+      }
+
+      // Validate names are not empty
+      if (!firstName.trim() || !lastName.trim()) {
+        await say("Please provide valid first and last names");
+        return;
+      }
+
+      try {
+        // Search for user using the extracted function
+        const user = await findUserByName(client, firstName, lastName);
+        
+        if (!user) {
+          throw new Error(`User not found: ${firstName} ${lastName}`);
+        }
+
+        // Save to database
+        statements.insertBirthday.run(user.id, birthDate);
+
+        // Format date for display
+        const formattedDate = formatDate(birthDate);
+        const slackFirstName = user.first_name || (user.real_name_normalized || user.real_name).split(' ')[0];
+
+        await say({
+          text: `Birthday set`,
+          blocks: [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: `✅ ${slackFirstName}'s birthday set for *${formattedDate}*`
+              }
+            }
+          ]
+        });
+
+        console.log(`Successfully set birthday for ${user.real_name || user.name} (${user.id}): ${birthDate}`);
+      } catch (userError) {
+        console.error('User search error:', userError);
+        
+        // Provide more specific error messages
+        if (userError.message.includes('User not found')) {
+          await say({
+            text: `User not found`,
+            blocks: [
+              {
+                type: "section",
+                text: {
+                  type: "mrkdwn",
+                  text: `❌ Could not find user: *${firstName} ${lastName}*\n\nPlease try:\n• Check the spelling of the name\n• Use the \`/set-birthday @username DD-MM\` command instead\n• Make sure the user exists in your Slack workspace`
+                }
+              }
+            ]
+          });
+        } else {
+          await say(`Error finding user: ${userError.message}. Please try the manual command: \`/set-birthday @username DD-MM\``);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error in /set-birthday-auto command:', error);
+      await say({
+        text: "Error setting birthday",
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "❌ Sorry, there was an error setting the birthday.\n\nPlease try the manual command: `/set-birthday @username DD-MM`"
+            }
+          }
+        ]
+      });
     }
   });
 

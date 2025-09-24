@@ -15,9 +15,12 @@ node index.js
 ## Commands
 
 - `/set-birthday @user DD-MM`: Set someone's birthday.
+- `/set-birthday-auto firstname lastname DD-MM`: For Deel to set a birthday automatically using their first name and last name.
 - `/see-birthdays`: Show all birthdays.
 - `/post-birthday-thread @user`: Manually post a thread to the birthday channel for someone.
 - `/collect-birthdays @user`: Manually collect birthday messages for someone.
+
+To add another command, add it to the `commands.js` file and register it with [Slack](https://api.slack.com/apps/) in the "Slash Commands" section.
 
 ## Structure
 
