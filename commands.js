@@ -313,8 +313,38 @@ function registerCommands(app) {
         return;
       }
 
-      const result = await client.users.list();
-      const users = result.members;
+      // Get all users with pagination
+      let allUsers = [];
+      let cursor = undefined;
+      let searchAttempts = 0;
+      const maxSearchAttempts = 10; // Prevent infinite loops
+      
+      do {
+        searchAttempts++;
+        if (searchAttempts > maxSearchAttempts) {
+          console.log('Max search attempts reached, stopping user list pagination');
+          break;
+        }
+
+        try {
+          // Get users from Slack with pagination
+          const response = await client.users.list(cursor ? { cursor } : {});
+          const memberList = response.members;
+          
+          // Add users to our collection
+          allUsers = allUsers.concat(memberList);
+          
+          // Get next cursor for pagination
+          cursor = response.response_metadata && response.response_metadata.next_cursor
+            ? response.response_metadata.next_cursor
+            : undefined;
+        } catch (error) {
+          console.error('Error fetching users list:', error);
+          throw error;
+        }
+      } while (cursor && cursor.length > 0);
+
+      const users = allUsers;
 
       // Group birthdays by month
       const birthdaysByMonth = birthdays.reduce((acc, birthday) => {
