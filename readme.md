@@ -17,6 +17,7 @@ node index.js
 - `/set-birthday @user DD-MM`: Set someone's birthday.
 - `/set-birthday-auto firstname lastname DD-MM`: For Deel to set a birthday automatically using their first name and last name.
 - `/see-birthdays`: Show all birthdays.
+- `/check-birthday @user`: Check a user's birthday.
 - `/post-birthday-thread @user`: Manually post a thread to the birthday channel for someone.
 - `/collect-birthdays @user`: Manually collect birthday messages for someone.
 
