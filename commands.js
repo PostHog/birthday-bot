@@ -376,31 +376,78 @@ function registerCommands(app) {
         return acc;
       }, {});
 
-      // Create formatted message
-      let message = "*🎂 Birthday Calendar*\n\n";
-      
-      for (const month of Object.keys(birthdaysByMonth)) {
-        message += `*${month}*\n`;
-        const sortedBirthdays = birthdaysByMonth[month].sort((a, b) => a.day - b.day);
+      // Helper function to create a message chunk
+      const createMessageChunk = (monthsData, chunkNumber, totalChunks) => {
+        let message = "";
         
-        for (const bday of sortedBirthdays) {
-          message += `• ${bday.day} - ${bday.slackName}\n`;
+        if (chunkNumber === 1) {
+          message = "*🎂 Birthday Calendar*\n\n";
+        } else {
+          message = `*Birthday Calendar (Part ${chunkNumber}/${totalChunks})*\n\n`;
         }
-        message += "\n";
+        
+        for (const month of Object.keys(monthsData)) {
+          message += `*${month}*\n`;
+          const sortedBirthdays = monthsData[month].sort((a, b) => a.day - b.day);
+          
+          for (const bday of sortedBirthdays) {
+            message += `• ${bday.day} - ${bday.slackName}\n`;
+          }
+          message += "\n";
+        }
+        
+        return message;
+      };
+
+      // Split birthdays into chunks that fit within Slack's character limit
+      const MAX_CHARACTERS = 2000; // Leave some buffer under the 3000 limit
+      const monthNames = Object.keys(birthdaysByMonth).sort();
+      const chunks = [];
+      let currentChunk = {};
+      let currentChunkSize = 0;
+      
+      for (const month of monthNames) {
+        const monthData = birthdaysByMonth[month];
+        const monthText = `*${month}*\n${monthData.map(bday => `• ${bday.day} - ${bday.slackName}\n`).join('')}\n`;
+        
+        // If adding this month would exceed the limit, start a new chunk
+        if (currentChunkSize + monthText.length > MAX_CHARACTERS && Object.keys(currentChunk).length > 0) {
+          chunks.push(currentChunk);
+          currentChunk = {};
+          currentChunkSize = 0;
+        }
+        
+        currentChunk[month] = monthData;
+        currentChunkSize += monthText.length;
+      }
+      
+      // Add the last chunk if it has content
+      if (Object.keys(currentChunk).length > 0) {
+        chunks.push(currentChunk);
       }
 
-      await say({
-        text: "Birthday Calendar",
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: message
+      // Send each chunk as a separate message
+      for (let i = 0; i < chunks.length; i++) {
+        const message = createMessageChunk(chunks[i], i + 1, chunks.length);
+        
+        await say({
+          text: `Birthday Calendar ${chunks.length > 1 ? `(Part ${i + 1}/${chunks.length})` : ''}`,
+          blocks: [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: message
+              }
             }
-          }
-        ]
-      });
+          ]
+        });
+        
+        // Add a small delay between messages to avoid rate limiting
+        if (i < chunks.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
 
     } catch (error) {
       console.error('Error listing birthdays:', error);
