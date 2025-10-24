@@ -455,6 +455,55 @@ function registerCommands(app) {
     }
   });
 
+  // Check a single user's birthday
+  app.command('/check-birthday', async ({ command, ack, say, client }) => {
+    await ack();
+
+    try {
+      const mention = command.text.trim();
+
+      if (!mention) {
+        await say({
+          text: "Please provide a user mention.",
+          blocks: [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: "Please provide a user.\nFormat: `/check-birthday @user`"
+              }
+            }
+          ]
+        });
+        return;
+      }
+
+      // Extract user ID and username from mention: <@U1234|username>
+      const match = mention.match(/^<@([A-Z0-9]+)\|([^>]+)>$/);
+      if (!match) {
+        await say("Invalid format. Please tag a user, like `/check-birthday @user`.");
+        return;
+      }
+      const userId = match[1];
+      const username = match[2];
+
+      // Check for the birthday
+      const bday = statements.getBirthday.get(userId);
+
+      if (!bday || !bday.birth_date || bday.birth_date === "1900-01-01") {
+        await say(`No birthday is set for ${username}.`);
+        return;
+      }
+
+      // Format the date into something pretty (format is DD-MM)
+      const [day, month] = bday.birth_date.split('-');
+      await say(`Birthday for ${username} is set as *${day}-${month}*`);
+    } catch (error) {
+      console.error('Error in /check-birthday command:', error);
+      await say("Sorry, there was an error checking the birthday.");
+    }
+  });
+
   app.command('/collect-birthday-messages', async ({ command, ack, client, say }) => {
     await ack();
     
