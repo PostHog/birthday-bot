@@ -81,11 +81,16 @@ function setupCronJobs(app) {
       
       for (const birthday of upcomingBirthdays) {
         const today = new Date();
-        const birthdayDate = new Date(today.getFullYear(), 
+        const birthdayDate = new Date(today.getFullYear(),
           parseInt(birthday.birth_date.split('-')[1]) - 1,
           parseInt(birthday.birth_date.split('-')[0])
         );
-        
+
+        // If the birthday has already passed this year, use next year
+        if (birthdayDate < today) {
+          birthdayDate.setFullYear(today.getFullYear() + 1);
+        }
+
         const diffTime = birthdayDate.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         
