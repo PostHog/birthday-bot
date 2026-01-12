@@ -80,7 +80,10 @@ function setupCronJobs(app) {
       const upcomingBirthdays = statements.getAllBirthdays.all();
       
       for (const birthday of upcomingBirthdays) {
-        const today = new Date();
+        // Get current date in London timezone
+        const today = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/London"}));
+        today.setHours(0, 0, 0, 0); // Set to midnight for date-only comparison
+
         const birthdayDate = new Date(today.getFullYear(),
           parseInt(birthday.birth_date.split('-')[1]) - 1,
           parseInt(birthday.birth_date.split('-')[0])
@@ -92,7 +95,7 @@ function setupCronJobs(app) {
         }
 
         const diffTime = birthdayDate.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
         
         if (diffDays === 7) {
           console.log(`Triggering collection for ${birthday.user_id}`)
