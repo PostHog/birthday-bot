@@ -31,3 +31,23 @@ A cron job that runs every day at 9am UK time to check:
 2. If someone's birthday is today, post a thread to the birthday channel.
 
 There are also some commands that can be used to set birthdays and trigger functions manually.
+
+## How to connect to Render database
+
+Go to Render shell or use SSH and then go to the data directory:
+
+```
+cd /data
+```
+
+Then connect to the database:
+
+```
+sqlite3 birthdays.db
+```
+
+Then you can use the database:
+
+```
+SELECT * FROM birthdays;
+```
