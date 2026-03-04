@@ -343,34 +343,64 @@ async function postBirthdayThread(client, celebrantId) {
         thread_ts: mainPost.ts,
         text: "*A special birthday poem for you:*\n\n" + poem + "\n\n:birthday: :sparkles: :cake:"
       });
+      await delay(1500);
 
       // Post the descriptions
       let descriptionMessage = "*Here's what your colleagues say about you:*\n\n";
       for (const desc of descriptions) {
         descriptionMessage += `• ${desc.message} _- ${desc.sender_name}_\n\n`;
       }
-      
+
       await client.chat.postMessage({
         channel: BIRTHDAY_CHANNEL,
         thread_ts: mainPost.ts,
         text: descriptionMessage
       });
+      await delay(1500);
 
       // Mark descriptions as sent
       statements.markDescriptionMessagesAsSent.run(celebrantId);
     }
     
-    for (const message of messages) {
-      console.log(`Posting birthday message for ${celebrantId} from ${message.sender_name}`);
-      let text = `${message.sender_name} says:\n${message.message}`;
-      if (message.media_url) {
-        text += `<${message.media_url}|.>`;
+    // Split messages into text-only and media messages
+    const textOnlyMessages = messages.filter(m => !m.media_url);
+    const mediaMessages = messages.filter(m => m.media_url);
+
+    // Combine text-only messages into batched posts (max ~2000 chars each)
+    const textBatches = [];
+    let currentBatch = '';
+    for (const message of textOnlyMessages) {
+      const line = `*${message.sender_name}* says:\n${message.message}\n\n`;
+      if (currentBatch.length + line.length > 2000 && currentBatch.length > 0) {
+        textBatches.push(currentBatch.trim());
+        currentBatch = line;
+      } else {
+        currentBatch += line;
       }
+    }
+    if (currentBatch.trim()) {
+      textBatches.push(currentBatch.trim());
+    }
+
+    for (const batchText of textBatches) {
+      console.log(`Posting batched text messages for ${celebrantId}`);
+      await client.chat.postMessage({
+        channel: BIRTHDAY_CHANNEL,
+        thread_ts: mainPost.ts,
+        text: batchText
+      });
+      await delay(1500);
+    }
+
+    for (const message of mediaMessages) {
+      console.log(`Posting media message for ${celebrantId} from ${message.sender_name}`);
+      const text = `*${message.sender_name}* says:\n${message.message}<${message.media_url}|.>`;
       await client.chat.postMessage({
         channel: BIRTHDAY_CHANNEL,
         thread_ts: mainPost.ts,
         text: text
       });
+      await delay(1500);
     }
 
     // Mark messages as sent
