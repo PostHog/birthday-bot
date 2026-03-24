@@ -600,6 +600,8 @@ function registerCommands(app) {
       }
 
       try {
+        let anyNewData = false;
+
         // Save message if provided (database will handle duplicates)
         if (messageText) {
           const result = statements.insertBirthdayMessage.run(
@@ -609,8 +611,8 @@ function registerCommands(app) {
             messageText,    // the actual message
             mediaUrl       // optional media URL
           );
-          if (result.changes === 0) {
-            console.log(`Duplicate birthday message prevented for ${senderId} -> ${celebrantId}`);
+          if (result.changes > 0) {
+            anyNewData = true;
           }
         }
 
@@ -622,24 +624,10 @@ function registerCommands(app) {
             senderName,     // sender's real name
             descriptionText // the actual description
           );
-          if (result.changes === 0) {
-            console.log(`Duplicate description message prevented for ${senderId} -> ${celebrantId}`);
+          if (result.changes > 0) {
+            anyNewData = true;
           }
         }
-
-        // Customize confirmation message based on what was submitted
-        let confirmationMessage = "Thanks for submitting your ";
-        if (messageText && descriptionText) {
-          confirmationMessage += "birthday message and description";
-        } else if (messageText) {
-          confirmationMessage += "birthday message";
-        } else {
-          confirmationMessage += "description";
-        }
-        if (mediaUrl) {
-          confirmationMessage += " with media";
-        }
-        confirmationMessage += " for <@" + celebrantId + ">! 🎉";
 
         // Try to delete the original message containing the form
         try {
@@ -651,13 +639,31 @@ function registerCommands(app) {
           console.log('Could not delete original message (this is okay):', deleteError.message);
         }
 
-        // Confirm receipt to the sender
-        await client.chat.postMessage({
-          channel: senderId,
-          text: confirmationMessage
-        });
+        // Only send confirmation if this was new data (not a duplicate retry)
+        if (anyNewData) {
+          // Customize confirmation message based on what was submitted
+          let confirmationMessage = "Thanks for submitting your ";
+          if (messageText && descriptionText) {
+            confirmationMessage += "birthday message and description";
+          } else if (messageText) {
+            confirmationMessage += "birthday message";
+          } else {
+            confirmationMessage += "description";
+          }
+          if (mediaUrl) {
+            confirmationMessage += " with media";
+          }
+          confirmationMessage += " for <@" + celebrantId + ">! 🎉";
 
-        console.log(`Stored birthday content from ${senderId} for ${celebrantId}`);
+          await client.chat.postMessage({
+            channel: senderId,
+            text: confirmationMessage
+          });
+        }
+
+        console.log(anyNewData
+          ? `Stored birthday content from ${senderId} for ${celebrantId}`
+          : `Duplicate submission ignored from ${senderId} for ${celebrantId}`);
       } catch (dbError) {
         console.error('Database error:', dbError);
         await client.chat.postMessage({
