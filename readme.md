@@ -23,6 +23,47 @@ node index.js
 
 To add another command, add it to the `commands.js` file and register it with [Slack](https://api.slack.com/apps/) in the "Slash Commands" section.
 
+## Webhook API
+
+Set birthdays automatically from an external tool (HR system, Zapier, etc.) by POSTing to the Express server. Set a `WEBHOOK_API_KEY` environment variable (locally in `.env` and on Render) and send it on each request.
+
+```
+POST /api/birthdays
+Authorization: Bearer <WEBHOOK_API_KEY>     (or: X-API-Key: <WEBHOOK_API_KEY>)
+Content-Type: application/json
+
+{
+  "birthday": "1990-02-11",        // required — DD-MM ("11-02") or full ISO date ("YYYY-MM-DD")
+  "slack_user_id": "U123ABC",      // optional — tried first
+  "email": "person@example.com",   // optional — tried second
+  "first_name": "Ian",             // optional — tried last (needs last_name too)
+  "last_name": "Vanagas"
+}
+```
+
+Provide at least one identifier. They're resolved in priority order: **Slack user ID → email → first/last name**. Only the month and day are stored, so the year in an ISO date is ignored.
+
+Example:
+
+```
+curl -X POST https://<your-app>.onrender.com/api/birthdays \
+  -H "Authorization: Bearer $WEBHOOK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "person@example.com", "birthday": "1990-02-11"}'
+```
+
+Responses:
+
+- `200` — `{ "ok": true, "user_id": "U123ABC", "birthday": "11-02", "matched_by": "email" }`
+- `400` — invalid/missing date or no identifier provided
+- `401` — missing or wrong API key
+- `404` — no matching Slack user found
+- `503` — `WEBHOOK_API_KEY` not configured on the server
+
+Every authenticated request (success or failure) posts a notification to the `ADMIN_CHANNEL`, so you can see when an external tool sets — or fails to set — a birthday. Unauthenticated requests (`401`) and unconfigured-key requests (`503`) are not announced, to avoid noise from probes.
+
+Looking up a user by email requires the `users:read.email` scope on the Slack app.
+
 ## Structure
 
 A cron job that runs every day at 9am UK time to check:

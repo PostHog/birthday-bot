@@ -8,6 +8,9 @@
   },
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "@slack/bolt": "^4.1.0",

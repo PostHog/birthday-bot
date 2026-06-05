@@ -1,6 +1,7 @@
 const { App } = require('@slack/bolt');
 require('dotenv').config();
 const registerCommands = require('./commands');
+const registerApiRoutes = require('./api');
 const { setupCronJobs } = require('./birthday-cron');
 const express = require('express');
 
@@ -20,8 +21,9 @@ expressApp.get('/', (req, res) => {
   res.send('Birthday Bot is running!');
 });
 
-// Register commands and setup cron jobs
+// Register commands, the webhook API, and setup cron jobs
 registerCommands(app);
+registerApiRoutes(expressApp, app.client);
 setupCronJobs(app);
 
 // Start both the Socket Mode app and the Express server
